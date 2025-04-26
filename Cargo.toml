@@ -1,0 +1,23 @@
+[package]
+name = "image_viewer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+image = "0.25.6"
+pollster = "0.4.0"
+softbuffer = "0.4.6"
+winit = "0.30.9"
+
+[profile.release]
+opt-level = 2
+debug = false
+incremental = false
+lto = true          # Enable link-time optimization
+codegen-units = 1   # Reduce number of codegen units to increase optimizations
+panic = 'abort'     # Abort on panic
+strip = true        # Strip symbols from binary*
+
+[profile.dev]
+debug = true
+opt-level = 0
