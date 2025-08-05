@@ -1,9 +1,10 @@
-use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::{env, time::*};
+
+use anyhow::Context;
 
 use image::codecs::gif::GifDecoder;
 use image::{AnimationDecoder, Delay, Frame, RgbImage};
@@ -14,7 +15,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowId};
 
-use softbuffer::{Context, Surface};
+use softbuffer::Surface;
 
 #[derive(Default)]
 struct App {
@@ -37,7 +38,7 @@ impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window_attributes = Window::default_attributes().with_title("A fantastic window!");
         let window = Rc::new(event_loop.create_window(window_attributes).unwrap());
-        let context = Context::new(window.clone()).unwrap();
+        let context = softbuffer::Context::new(window.clone()).unwrap();
         let surface = Surface::new(&context, window.clone()).unwrap();
 
         let size = window.inner_size();
@@ -150,8 +151,8 @@ impl ApplicationHandler for App {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let event_loop = EventLoop::new()?;
+fn main() -> anyhow::Result<()> {
+    let event_loop = EventLoop::new().context("Failed to create event loop")?;
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 2 {
@@ -160,18 +161,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let mut app = App::default();
-    let image = ImageReader::open(args[1].clone()).unwrap();
+    let image = ImageReader::open(args[1].clone())
+        .context(format!("Failed to open image at {}", args[1]))?;
     match image.format().unwrap() {
         ImageFormat::Gif => {
             app.is_animated = true;
-            let file = BufReader::new(File::open(args[1].clone())?);
-            let decoder = GifDecoder::new(file)?;
-            let frames = decoder.into_frames().collect_frames()?;
             app.frames = frames;
+            let file = BufReader::new(
+                File::open(args[1].clone())
+                    .context(format!("Failed to open GIF file at {}", args[1]))?,
+            );
+            let decoder = GifDecoder::new(file).context("Failed to create GIF decoder")?;
+            let frames = decoder
+                .into_frames()
+                .collect_frames()
+                .context("Failed to grab GIF frames")?;
         }
         _ => {
-            app.image = image.decode().unwrap();
             app.is_animated = false;
+            app.image = image.decode().context("Failed to decode image")?;
         }
     };
     event_loop.run_app(&mut app)?;
