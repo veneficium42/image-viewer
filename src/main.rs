@@ -102,13 +102,16 @@ impl ApplicationHandler for App {
 
                 window.pre_present_notify();
 
+                let x_offset = ((size.width - self.resized_image.width()) / 2) as usize;
+                let y_offset = ((size.height - self.resized_image.height()) / 2) as usize;
                 for (img_row, buf_row) in self
                     .resized_image
                     .rows()
-                    .zip(buffer.chunks_exact_mut(size.width as usize))
+                    .zip(buffer.chunks_exact_mut(size.width as usize).skip(y_offset))
                 {
                     for (i, pix) in img_row.enumerate() {
-                        buf_row[i] = u32::from_be_bytes([0, pix.0[0], pix.0[1], pix.0[2]]);
+                        buf_row[i + x_offset] =
+                            u32::from_be_bytes([0, pix.0[0], pix.0[1], pix.0[2]]);
                     }
                 }
 
