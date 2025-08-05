@@ -83,8 +83,6 @@ impl ApplicationHandler for App {
 
                 buffer.fill(0);
 
-                window.pre_present_notify();
-
                 if let Some(anim) = self.animation.as_mut() {
                     let curr_frame = anim.frame;
                     match anim.resized_frames[curr_frame].as_ref() {
@@ -101,6 +99,8 @@ impl ApplicationHandler for App {
                         }
                     }
                 }
+
+                window.pre_present_notify();
 
                 for (img_row, buf_row) in self
                     .resized_image
