@@ -27,6 +27,7 @@
           packages = [
             cargo-bloat
             upx
+            pkg-config
           ];
 
           buildInputs = [
