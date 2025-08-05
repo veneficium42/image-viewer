@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.98"
 image = "0.25.6"
-pollster = "0.4.0"
-softbuffer = "0.4.6"
-winit = "0.30.9"
+softbuffer = { version = "0.4.6", default-features = false, features = ["wayland", "wayland-dlopen", "kms"] }
+winit = { version = "0.30.9", default-features = false, features = ["wayland", "wayland-dlopen", "rwh_06"] }
 
 [profile.release]
 opt-level = 2
