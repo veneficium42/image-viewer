@@ -25,11 +25,15 @@ struct App {
     resized_image: RgbImage,
 
     // animated images stuff
-    is_animated: bool,
+    animation: Option<Animation>,
+}
+
+#[derive(Default)]
+struct Animation {
     frames: Vec<Frame>,
     resized_frames: Vec<Option<RgbImage>>,
     frame_dur: Vec<Delay>,
-    // index of the current frame
+    //current frame
     frame: usize,
     last_update: Option<Instant>,
 }
@@ -48,10 +52,10 @@ impl ApplicationHandler for App {
             .resize(size.width, size.height, FilterType::Nearest)
             .to_rgb8();
 
-        if self.is_animated {
-            self.frame_dur = self.frames.iter().map(|frame| frame.delay()).collect();
-            self.last_update = Some(Instant::now());
-            self.resized_frames = vec![None; self.frames.len()];
+        if let Some(anim) = self.animation.as_mut() {
+            anim.frame_dur = anim.frames.iter().map(|frame| frame.delay()).collect();
+            anim.last_update = Some(Instant::now());
+            anim.resized_frames = vec![None; anim.frames.len()];
         }
 
         self.surface = Some(surface);
@@ -81,21 +85,19 @@ impl ApplicationHandler for App {
 
                 window.pre_present_notify();
 
-                if self.is_animated {
-                    let curr_frame = self.frame;
-                    let frame = self.resized_frames[curr_frame].clone();
-                    match frame {
+                if let Some(anim) = self.animation.as_mut() {
+                    let curr_frame = anim.frame;
+                    match anim.resized_frames[curr_frame].as_ref() {
                         Some(frame) => {
-                            self.resized_image = frame;
+                            self.resized_image = frame.clone();
                         }
                         None => {
-                            let original_frame = self.frames[curr_frame].clone();
-                            let resized_frame =
-                                DynamicImage::ImageRgba8(original_frame.into_buffer())
-                                    .resize(size.width, size.height, FilterType::Nearest)
-                                    .into_rgb8();
-                            self.resized_frames[curr_frame] = Some(resized_frame);
-                            self.resized_image = self.resized_frames[curr_frame].clone().unwrap();
+                            let original_buffer = anim.frames[curr_frame].buffer().clone();
+                            let resized_frame = DynamicImage::ImageRgba8(original_buffer)
+                                .resize(size.width, size.height, FilterType::Nearest)
+                                .into_rgb8();
+                            anim.resized_frames[curr_frame] = Some(resized_frame);
+                            self.resized_image = anim.resized_frames[curr_frame].clone().unwrap();
                         }
                     }
                 }
@@ -112,12 +114,12 @@ impl ApplicationHandler for App {
 
                 buffer.present().unwrap();
 
-                if self.is_animated {
-                    if self.last_update.unwrap().elapsed() > self.frame_dur[self.frame].into() {
-                        self.last_update = Some(Instant::now());
-                        self.frame += 1;
-                        if self.frame >= self.frames.len() {
-                            self.frame = 0;
+                if let Some(anim) = self.animation.as_mut() {
+                    if anim.last_update.unwrap().elapsed() > anim.frame_dur[anim.frame].into() {
+                        anim.last_update = Some(Instant::now());
+                        anim.frame += 1;
+                        if anim.frame >= anim.frames.len() {
+                            anim.frame = 0;
                         }
                     }
 
@@ -137,13 +139,13 @@ impl ApplicationHandler for App {
                     )
                     .expect("surface resize gone wrong");
 
-                if !self.is_animated {
+                if let Some(anim) = self.animation.as_mut() {
+                    anim.resized_frames = vec![None; anim.frames.len()];
+                } else {
                     self.resized_image = self
                         .image
                         .resize(new_size.width, new_size.height, FilterType::Nearest)
                         .to_rgb8();
-                } else {
-                    self.resized_frames = vec![None; self.frames.len()];
                 }
             }
             _ => (),
@@ -165,8 +167,7 @@ fn main() -> anyhow::Result<()> {
         .context(format!("Failed to open image at {}", args[1]))?;
     match image.format().unwrap() {
         ImageFormat::Gif => {
-            app.is_animated = true;
-            app.frames = frames;
+            let mut animation = Animation::default();
             let file = BufReader::new(
                 File::open(args[1].clone())
                     .context(format!("Failed to open GIF file at {}", args[1]))?,
@@ -176,9 +177,11 @@ fn main() -> anyhow::Result<()> {
                 .into_frames()
                 .collect_frames()
                 .context("Failed to grab GIF frames")?;
+            animation.frames = frames;
+
+            app.animation = Some(animation);
         }
         _ => {
-            app.is_animated = false;
             app.image = image.decode().context("Failed to decode image")?;
         }
     };
